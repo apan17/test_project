@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>IoT Smart Dustbin</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <style>
+    body { background: #121212; color: white; font-family: sans-serif; text-align: center; margin: 50px; }
+    .card { background: #1e1e1e; padding: 20px; border-radius: 10px; margin: 20px auto; width: 300px; border: 1px solid #333; }
+    h2 { margin: 0; color: #aaa; font-size: 16px; }
+    .value { font-size: 48px; font-weight: bold; }
+    
+    /* COLORS */
+    .safe { color: #4CAF50; } /* Green */
+    .danger { color: #F44336; } /* Red */
+    
+    #debug-log { color: yellow; font-family: monospace; font-size: 12px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+  <h1>♻️ Smart Dustbin Monitor</h1>
+
+  <div class="card">
+    <h2>🗑️ Fill Level</h2>
+    <div id="fill" class="value safe">--%</div>
+  </div>
+
+  <div class="card">
+    <h2>⚠️ Gas Level</h2>
+    <div id="gas-display" class="value safe">--</div>
+    <div id="gas-value" style="color: #888; margin-top: 5px;">Value: --</div>
+  </div>
+
+  <div class="card">
+    <h2>📍 Location</h2>
+    <div id="loc" style="margin-top:10px;">Waiting...</div>
+  </div>
+
+  <div id="debug-log">Loading system...</div>
+
+  <script>
+    // 🔴 YOUR KEYS HERE 🔴
+    const SUPABASE_URL = "https://dodtdqvntdazpnbmrqwq.supabase.co"; 
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvZHRkcXZudGRhenBuYm1ycXdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwNDU0ODYsImV4cCI6MjA4MzYyMTQ4Nn0.JPgJyEWQWsAZETxTvm-pjYI7cwTBatbSkTVSU7EWOtw"; 
+
+    // *** SET YOUR THRESHOLD HERE ***
+    const GAS_LIMIT = 2000; 
+
+    // Debug Function
+    function log(msg) {
+      console.log(msg);
+      document.getElementById('debug-log').innerText = "Status: " + msg;
+    }
+
+    try {
+      const { createClient } = supabase;
+      const _supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+      log("System Ready.");
+
+      function update(data) {
+        if (!data) return;
+
+        // 1. UPDATE FILL PERCENT
+        document.getElementById('fill').innerText = (data.fill_percent || 0) + "%";
+
+        // 2. UPDATE GAS (Logic Changed)
+        const gasRaw = data.gas_level || 0;
+        const gasDisplay = document.getElementById('gas-display');
+        const gasValueText = document.getElementById('gas-value');
+
+        // Update the small number text
+        gasValueText.innerText = "Value: " + gasRaw;
+
+        // Logic: HIGH vs LOW
+        if (gasRaw > GAS_LIMIT) {
+          gasDisplay.innerText = "HIGH";
+          gasDisplay.className = "value danger"; // Turns RED
+        } else {
+          gasDisplay.innerText = "LOW";
+          gasDisplay.className = "value safe";   // Turns GREEN
+        }
+
+        // 3. UPDATE MAP
+        if(data.lat) {
+          document.getElementById('loc').innerHTML = 
+            `<a style="color:#4CAF50" target="_blank" href="http://maps.google.com/?q=${data.lat},${data.lng}">View Map</a>`;
+        }
+      }
+
+      // Live Listener
+      _supabase.channel('readings')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'readings' }, payload => {
+          update(payload.new);
+          log("Updated: " + new Date().toLocaleTimeString());
+        })
+        .subscribe();
+
+      // Initial Load
+      async function load() {
+        const { data } = await _supabase.from('readings').select('*').order('created_at', {ascending:false}).limit(1);
+        if (data && data.length > 0) update(data[0]);
+      }
+      load();
+
+    } catch (err) {
+      log("Error: " + err.message);
+    }
+  </script>
+</body>
+</html>
