@@ -16,7 +16,7 @@ The project demonstrates a full end-to-end IoT solution, spanning from physical 
 
 The system follows a 5-layer IoT architecture, enabling robust data flow from the edge to the cloud.
 
-![IoT Architecture Diagram](CAT402_Smart_Dustbina-Wifi/images/architecture_diagram.jpg)
+![IoT Architecture Diagram](CPC357_Smart_Dustbin_Wifi/images/architecture_diagram.jpg)
 
 
 1.  **Perception Layer:** ESP32-S3 reads data from Ultrasonic, Gas, PIR, and GPS sensors and controls a Servo and LCD.
