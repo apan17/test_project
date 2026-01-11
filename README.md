@@ -29,6 +29,9 @@ The system follows a 5-layer IoT architecture, enabling robust data flow from th
 
 ## 🛠️ Hardware Checklist
 
+![Hardware Installation Setup](CAT402_Smart_Dustbina-Wifi/images/hardware_installation.png)
+
+
 The following components are required to build the physical prototype:
 
 * **Microcontroller:** Cytron Maker Feather AIoT S3 (ESP32-S3)
