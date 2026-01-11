@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Smart Dustbin Dashboard</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-green: #22c55e;
+      --accent-red: #ef4444;
+      --accent-yellow: #eab308;
+      --border-color: #334155;
+      --btn-hover: #334155;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding-bottom: 40px;
+    }
+
+    header {
+      background: var(--card-bg);
+      padding: 15px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .brand { font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    
+    .header-controls { display: flex; align-items: center; gap: 15px; }
+
+    .status-badge { 
+      background: rgba(34, 197, 94, 0.2); 
+      color: var(--accent-green); 
+      padding: 6px 12px; 
+      border-radius: 20px; 
+      font-size: 12px; 
+      font-weight: 600; 
+      display: flex; align-items: center; gap: 6px;
+    }
+    .dot { width: 8px; height: 8px; background: var(--accent-green); border-radius: 50%; animation: pulse 2s infinite; }
+
+    .refresh-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .refresh-btn:hover { background: var(--btn-hover); color: white; border-color: var(--text-muted); }
+    .refresh-btn:active { transform: scale(0.95); }
+
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+    .container {
+      max-width: 1200px;
+      margin: 30px auto;
+      padding: 0 20px;
+      display: grid;
+      gap: 24px;
+      grid-template-columns: 1fr; 
+    }
+
+    @media (min-width: 768px) {
+      .container { grid-template-columns: repeat(2, 1fr); }
+      .summary-cards { grid-column: span 2; display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+      .history-section { grid-column: span 2; }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      padding: 24px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .metric-value { font-size: 48px; font-weight: 700; letter-spacing: -1px; }
+    .metric-sub { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
+    
+    .text-green { color: var(--accent-green); }
+    .text-red { color: var(--accent-red); }
+    .text-yellow { color: var(--accent-yellow); }
+
+    .visual-container { height: 350px; position: relative; border-radius: 12px; overflow: hidden; }
+    #map { width: 100%; height: 100%; }
+
+    .table-wrapper { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th { text-align: left; color: var(--text-muted); padding: 12px; font-size: 13px; border-bottom: 1px solid var(--border-color); }
+    td { padding: 14px 12px; border-bottom: 1px solid var(--border-color); font-size: 14px; }
+    tr:last-child td { border-bottom: none; }
+    
+    .status-pill {
+      padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    }
+    .pill-safe { background: rgba(34, 197, 94, 0.15); color: var(--accent-green); }
+    .pill-danger { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
+
+    #debug-log { text-align: center; color: var(--text-muted); font-size: 11px; margin-top: 20px; opacity: 0.7; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <span>♻️</span> Smart Dustbin Monitor
+    </div>
+    <div class="header-controls">
+      <div class="status-badge">
+        <div class="dot"></div> System Online
+      </div>
+      <button class="refresh-btn" onclick="refreshData()">
+        🔄 Refresh
+      </button>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <div class="summary-cards">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🗑️ Bin Capacity</span>
+        </div>
+        <div id="fill" class="metric-value text-green">--%</div>
+        <div class="metric-sub">Current Fill Level</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">⚠️ Gas Level</span>
+        </div>
+        <div id="gas-display" class="metric-value text-green">--</div>
+        <div id="gas-value" class="metric-sub">Raw Sensor: --</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📍 Live Bin Location</span>
+      </div>
+      <div class="visual-container" style="border: 1px solid var(--border-color);">
+        <div id="map"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📈 Live Fill Trend</span>
+      </div>
+      <div class="visual-container" style="height: 350px; padding-bottom: 10px;">
+        <canvas id="myChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card history-section">
+      <div class="card-header">
+        <span class="card-title">🕒 Action Log</span>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th width="30%">Timestamp</th>
+              <th width="20%">Fill %</th>
+              <th width="25%">Bin Status</th>
+              <th width="25%">Gas Level</th>
+            </tr>
+          </thead>
+          <tbody id="history-table">
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="debug-log">Waiting for data connection...</div>
+
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyByuxIh3Cp8crhs8NFmIxNN6DtmBpSBUcs&callback=initMap" async defer></script>
+
+  <script>
+    const SUPABASE_URL = "https://dodtdqvntdazpnbmrqwq.supabase.co"; 
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvZHRkcXZudGRhenBuYm1ycXdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwNDU0ODYsImV4cCI6MjA4MzYyMTQ4Nn0.JPgJyEWQWsAZETxTvm-pjYI7cwTBatbSkTVSU7EWOtw"; 
+    const GAS_LIMIT = 2000; 
+    
+    // 30 points = 30 minutes of history (1 point per min)
+    const MAX_CHART_POINTS = 30; 
+
+    let map, marker, chart;
+    let _supabase;
+
+    function log(msg) {
+      console.log(msg);
+      document.getElementById('debug-log').innerText = "Last Status: " + msg;
+    }
+
+    function initMap() {
+      const defaultPos = { lat: 3.1412, lng: 101.6865 };
+      map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 15,
+        center: defaultPos,
+        disableDefaultUI: true,
+        styles: [
+          { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+          { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+          { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+          { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
+          { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] }
+        ]
+      });
+      marker = new google.maps.Marker({ position: defaultPos, map: map, title: "Bin Location" });
+    }
+
+    function initChart() {
+      const ctx = document.getElementById('myChart').getContext('2d');
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Fill %',
+            borderColor: '#22c55e', 
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            data: [],
+            fill: true,
+            tension: 0.4,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }] 
+          // REMOVED Gas Dataset
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 0 }, 
+          plugins: { legend: { labels: { color: '#94a3b8' } } },
+          scales: {
+            x: { 
+              grid: { display: false }, 
+              ticks: { color: '#64748b' } 
+            },
+            y: { min: 0, max: 100, grid: { color: '#334155' }, ticks: { color: '#64748b' } }
+          }
+        }
+      });
+    }
+
+    try {
+      const { createClient } = supabase;
+      _supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+      
+      initChart();
+
+      function updateDashboard(data) {
+        if (!data) return;
+        const dateObj = new Date(data.created_at);
+        const timeLabel = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+        // A. UI UPDATES
+        const fillEl = document.getElementById('fill');
+        fillEl.innerText = (data.fill_percent || 0) + "%";
+        fillEl.className = "metric-value " + (data.fill_percent > 80 ? "text-red" : data.fill_percent > 50 ? "text-yellow" : "text-green");
+
+        const gasRaw = data.gas_level || 0;
+        const gasDisplay = document.getElementById('gas-display');
+        document.getElementById('gas-value').innerText = "Raw Sensor: " + gasRaw;
+        
+        if (gasRaw > GAS_LIMIT) {
+          gasDisplay.innerText = "HIGH";
+          gasDisplay.className = "metric-value text-red";
+        } else {
+          gasDisplay.innerText = "LOW";
+          gasDisplay.className = "metric-value text-green";
+        }
+
+        if (data.lat && data.lng && map) {
+          const pos = { lat: data.lat, lng: data.lng };
+          marker.setPosition(pos);
+          map.panTo(pos);
+        }
+
+        // B. CHART LOGIC (Fill Only)
+        if (chart) {
+          const lastIndex = chart.data.labels.length - 1;
+          const lastLabel = chart.data.labels[lastIndex];
+
+          if (lastLabel === timeLabel) {
+             // OVERWRITE last point (Dancing Edge)
+             chart.data.datasets[0].data[lastIndex] = data.fill_percent;
+          } else {
+             // NEW MINUTE -> Add new point
+             chart.data.labels.push(timeLabel);
+             chart.data.datasets[0].data.push(data.fill_percent);
+             
+             if (chart.data.labels.length > MAX_CHART_POINTS) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+             }
+          }
+          chart.update();
+        }
+
+        // C. TABLE LOGIC (Includes Gas)
+        const table = document.getElementById('history-table');
+        const row = table.insertRow(0);
+        
+        const needsCollection = (data.fill_percent >= 80) || (gasRaw > GAS_LIMIT);
+        const statusText = needsCollection ? "Collect Now" : "Normal";
+        const statusClass = needsCollection ? "pill-danger" : "pill-safe";
+        const gasText = (gasRaw > GAS_LIMIT) ? "HIGH ⚠️" : "LOW";
+
+        row.innerHTML = `
+          <td style="color: #94a3b8;">${dateObj.toLocaleTimeString()}</td>
+          <td><b>${data.fill_percent}%</b></td>
+          <td><span class="status-pill ${statusClass}">${statusText}</span></td>
+          <td>${gasText}</td>
+        `;
+        if (table.rows.length > 50) table.deleteRow(50);
+      }
+
+      window.refreshData = function() {
+        log("Refreshing data...");
+        document.getElementById('history-table').innerHTML = "";
+        if(chart) {
+            chart.data.labels = []; 
+            chart.data.datasets[0].data = []; 
+            chart.update();
+        }
+        load();
+      }
+
+      _supabase.channel('readings')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'readings' }, payload => {
+          updateDashboard(payload.new);
+        })
+        .subscribe();
+
+      async function load() {
+        const { data } = await _supabase.from('readings').select('*').order('created_at', {ascending:false}).limit(1000);
+        
+        if (data) {
+          const reversedData = [...data].reverse(); 
+          
+          const seenMinutes = new Set();
+          const filteredData = [];
+
+          reversedData.forEach((d) => {
+             const dDate = new Date(d.created_at);
+             const minuteKey = dDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+             
+             if (!seenMinutes.has(minuteKey)) {
+                 filteredData.push(d);
+                 seenMinutes.add(minuteKey);
+             }
+             else {
+                 filteredData[filteredData.length - 1] = d; 
+             }
+          });
+
+          filteredData.forEach(d => updateDashboard(d));
+          log("Data loaded (Fill Only on Chart).");
+        }
+      }
+      load();
+
+    } catch (e) { log(e.message); }
+  </script>
+</body>
+</html>
