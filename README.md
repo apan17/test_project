@@ -16,7 +16,8 @@ The project demonstrates a full end-to-end IoT solution, spanning from physical 
 
 The system follows a 5-layer IoT architecture, enabling robust data flow from the edge to the cloud.
 
-![IoT Architecture Diagram](images/architecture.png)
+![IoT Architecture Diagram]
+
 
 1.  **Perception Layer:** ESP32-S3 reads data from Ultrasonic, Gas, PIR, and GPS sensors and controls a Servo and LCD.
 2.  **Network Layer:** Data is transmitted via Wi-Fi using the lightweight MQTT protocol.
