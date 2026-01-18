@@ -77,4 +77,5 @@ The following components are required to build the physical prototype:
 2.  Open `index.html` and ensure your Supabase URL and Anon Key are correctly set in the JavaScript section.
 3.  Deploy this folder to Vercel (or any static site host) by importing the Git repository or using the Vercel CLI.
 
----
+### 4. Link to the Dashboard
+Vercel Link: https://smatbiniotsystem.vercel.app/ 
